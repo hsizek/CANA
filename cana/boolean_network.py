@@ -46,8 +46,8 @@ class StateTransitionGraph(ThinDiGraph):
 		# Call __init__ on parent class
 		super(self.__class__, self).__init__(incoming_graph_data=None, **attr)
 		#
-		self.graph['configuration_width'] = attr.get('configuration_width', np.nan)
-		self.graph['number_of_attractors'] = np.nan
+		self.graph['configuration_width'] = attr.get('configuration_width', None)
+		self.graph['number_of_attractors'] = None
 
 	def number_of_attractors(self):
 		"""The number of attractors in the STG."""
@@ -492,6 +492,7 @@ class BooleanNetwork(object):
 		STG = StateTransitionGraph(name=name, configuration_width=number_of_nodes)
 
 		# Nodes (states)
+		"""
 		if len(constant_nodes):
 			# Only add states that are possible, given the constant variables and their states
 			possible_states = set()
@@ -505,9 +506,9 @@ class BooleanNetwork(object):
 		else:
 			# No constant nodes, add all possible states
 			STG.add_nodes_from( (numstate, {'label':numstate_to_strstates(numstate, width=number_of_nodes)}) for numstate in np.arange(possible_number_of_states))
-
+		"""
 		# DEBUG
-		#STG.add_nodes_from( (numstate, {'label':numstate_to_strstates(numstate, width=number_of_nodes)}) for numstate in np.arange(possible_number_of_states))
+		STG.add_nodes_from( (numstate, {'label':numstate_to_strstates(numstate, width=number_of_nodes)}) for numstate in np.arange(possible_number_of_states))
 
 		# Edges (transitions)
 		for numstate in STG.nodes():

@@ -21,14 +21,14 @@ logic = {
 	0 : {
 		'name':'x1',
 		'in':[],
-		'out':[0,1],
+		'out':'1',
 		'constant':False,
 		'state':True
 	},
 	1 : {
 		'name':'x2',
 		'in':[0],
-		'out':[0,1],
+		'out':'01',
 		'constant':False,
 		'state':True
 	},
@@ -42,9 +42,10 @@ logic = {
 }
 #BN = cana.BooleanNetwork(name=name, logic=logic, verbose=True)
 BN = bio.BUDDING_YEAST()
+#BN = bio.THALIANA()
 
-BN.node_as_constant(i=10, constant=False, state=1)
-BN.node_as_constant(i=11, constant=False, state=1)
+#BN.node_as_constant(i=10, constant=False, state=1)
+#BN.node_as_constant(i=11, constant=False, state=1)
 #print '--- I/O ---'
 #cnetstr = BN.to_cnet()
 

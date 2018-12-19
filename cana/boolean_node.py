@@ -36,9 +36,8 @@ class BooleanNode(object):
 		self.state = state
 
 		# Consistency
-		if (k != 0):
-			if (2**len(inputs) != len(outputs)):
-				raise TypeError('Number of k={:,d} (inputs) do not match the number of output transitions 2**k={:,d}'.format( k , len(outputs) ))
+		if (2**len(inputs) != len(outputs)):
+			raise TypeError('Number of k={:,d} (inputs) do not match the number of output transitions 2**k={:,d}'.format( k , len(outputs) ))
 		
 		self._inputs = inputs
 		self._k = k
@@ -60,7 +59,9 @@ class BooleanNode(object):
 		self._ts_coverage = None 				# The Coverage of inputs by Two Symbol schemata
 
 	def __str__(self):
-		if len(self._outputs) > 10 :
+		if len(self._outputs) == 0:
+			outputs = 'state'
+		elif len(self._outputs) > 10 :
 			outputs = self._outputs[:4] + '...' + self._outputs[-4:]
 		else:
 			outputs = self._outputs

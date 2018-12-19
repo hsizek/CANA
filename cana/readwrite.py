@@ -84,9 +84,12 @@ def read_cnet(path, name=''):
 					if logic_line == '':
 						# this is a node with no input, but not constant
 						logic[inode]['in'] = [inode]
+						logic[inode]['state'] = False
+						logic[inode]['constant'] = False
 						logic[inode]['out'] = [0,1]
 					else:
 						# this is a constant node
+						logic[inode]['in'] = []
 						logic[inode]['state'] = logic_line
 						logic[inode]['constant'] = True
 						logic[inode]['out'] = logic_line
@@ -101,7 +104,6 @@ def read_cnet(path, name=''):
 			elif '.e' in line:
 				break
 		line = path.readline()
-	print logic
 	return BooleanNetwork(logic=logic, name=name)
 
 
