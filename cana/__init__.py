@@ -11,9 +11,16 @@ __author__ = """\n""".join([
 	'Luis M. Rocha <rocha@indiana.edu>'
 ])
 
-__copyright__ = u'2017, Correia, R. B., Gates, A., Rocha, L. M.'
+__copyright__ = u'2018, Correia, R. B., Gates, A., Rocha, L. M.'
 
 __version__ = '0.0.4'
 __release__ = '0.0.4-alpha'
 #
-__all__ = ['boolean_network','boolean_node']
+# Imports in order
+#
+import cana.utils
+
+from cana.readwrite import *
+
+from cana.boolean_node import *
+from cana.boolean_network import *

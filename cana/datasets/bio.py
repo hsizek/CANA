@@ -14,8 +14,7 @@ Some of the commonly used biological boolean networks
 #   All rights reserved.
 #   MIT license.
 import os
-import sys
-from .. boolean_network import BooleanNetwork
+import cana
 
 
 _path = os.path.dirname(os.path.realpath(__file__))
@@ -30,7 +29,7 @@ def THALIANA():
 	Returns:
 		(BooleanNetwork)
 	"""
-	return BooleanNetwork.from_file(_path + '/thaliana.txt', name="Arabidopsis Thaliana", keep_constants=True)
+	return cana.read_cnet(_path + '/thaliana.txt', name="Arabidopsis Thaliana")
 
 def DROSOPHILA(cells=1):
 	"""Drosophila Melanogaster boolean model.
@@ -41,25 +40,23 @@ def DROSOPHILA(cells=1):
 	There is currently only one model available, where the original neighboring cell signals are treated as constants.
 	
 	Args:
-		cells (int) : Which model to return.
+		cells (int) : Which model to return. Default=1
 
 	Returns:
 		(BooleanNetwork)
 	"""
 	if cells == 1:
-		return BooleanNetwork.from_file(_path + '/drosophila_single_cell.txt', name="Drosophila Melanogaster", keep_constants=True)
+		return cana.read_cnet(_path + '/drosophila_single_cell.txt', name="Drosophila Melanogaster")
 	else:
 		raise AttributeException('Only single (1) cell drosophila boolean model currently available.')
 
 def BUDDING_YEAST():
-	""" 
-
-	The network is defined in :cite:`Fangting:2004`.
+	"""The network is defined in :cite:`Fangting:2004`.
 	
 	Returns:
 		(BooleanNetwork)
 	"""
-	return BooleanNetwork.from_file(_path + '/yeast_cell_cycle.txt', name="Budding Yeast Cell Cycle", keep_constants=True)
+	return cana.read_cnet(_path + '/yeast_cell_cycle.txt', name="Budding Yeast Cell Cycle")
 
 def MARQUESPITA():
 	"""Boolean network used for the Two-Symbol schemata example.
@@ -69,7 +66,7 @@ def MARQUESPITA():
 	Returns:
 		(BooleanNetwork)
 	"""
-	return BooleanNetwork.from_file(_path + '/marques-pita_rocha.txt', name="Marques-Pita & Rocha", keep_constants=True)
+	return cana.read_cnet(_path + '/marques-pita_rocha.txt', name="Marques-Pita & Rocha")
 
 
 def LEUKEMIA():
@@ -80,7 +77,7 @@ def LEUKEMIA():
 	Returns:
 		(BooleanNetwork)
 	"""
-	return BooleanNetwork.from_file(_path + '/leukemia.txt', type='logical', name="Leukemia", keep_constants=True)
+	return cana.read_logical(_path + '/leukemia.txt', name="Leukemia")
 
 def BREAST_CANCER():
 	"""Boolean network model of signal transduction in ER+ breast cancer 
@@ -90,4 +87,4 @@ def BREAST_CANCER():
 	Returns:
 		(BooleanNetwork)
 	"""
-	return BooleanNetwork.from_file(_path + '/breast_cancer.txt', type='logical', name="Breast Cancer", keep_constants=True)
+	return cana.read_logical(_path + '/breast_cancer.txt', name="Breast Cancer")

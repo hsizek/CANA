@@ -11,7 +11,7 @@ Commonly used boolean node functions.
 #   Rion Brattig Correia <rionbr@gmail.com>
 #   All rights reserved.
 #   MIT license.
-from .. boolean_network import BooleanNode
+from cana import BooleanNode
 
 
 def AND():
@@ -25,7 +25,7 @@ def AND():
 		11 : 1
 
 	"""
-	return BooleanNode.from_output_list(outputs=[0,0,0,1], name="AND")
+	return BooleanNode(k=2, inputs=[0,1], outputs=[0,0,0,1], name="AND")
 
 def OR():
 	"""OR boolean node.
@@ -38,7 +38,7 @@ def OR():
 		11 : 1
 
 	"""
-	return BooleanNode.from_output_list(outputs=[0,1,1,1], name="OR")
+	return BooleanNode(k=2, inputs=[0,1], outputs=[0,1,1,1], name="OR")
 
 
 def XOR():
@@ -52,7 +52,7 @@ def XOR():
 		11 : 0
 
 	"""
-	return BooleanNode.from_output_list(outputs=[0,1,1,0], name="XOR")
+	return BooleanNode(k=2, inputs=[0,1], outputs=[0,1,1,0], name="XOR")
 
 
 def COPYx1():
@@ -66,7 +66,7 @@ def COPYx1():
 		11 : 1
 
 	"""
-	return BooleanNode.from_output_list(outputs=[0,0,1,1], name="COPY x_1")
+	return BooleanNode(k=2, inputs=[0,1], outputs=[0,0,1,1], name="COPY x_1")
 
 
 def CONTRADICTION():
@@ -80,7 +80,7 @@ def CONTRADICTION():
 		11 : 0
 
 	"""
-	return BooleanNode.from_output_list(outputs=[0,0,0,0], name="CONTRADICTION")
+	return BooleanNode(k=2, inputs=[0,1], outputs=[0,0,0,0], name="CONTRADICTION")
 
 
 def RULE90():
@@ -98,7 +98,7 @@ def RULE90():
 		111 : 0
 
 	"""
-	return BooleanNode.from_output_list(outputs=[0,1,0,1,1,0,1,0], name="RULE 90")
+	return BooleanNode(k=3, inputs=[0,1,2], outputs=[0,1,0,1,1,0,1,0], name="RULE 90")
 
 
 def RULE110():
@@ -116,6 +116,6 @@ def RULE110():
 		111 : 0
 
 	"""
-	return BooleanNode.from_output_list(outputs=[0,1,1,1,0,1,1,0], name="RULE 110")
+	return BooleanNode(k=3, inputs=[0,1,2], outputs=[0,1,1,1,0,1,1,0], name="RULE 110")
 
 

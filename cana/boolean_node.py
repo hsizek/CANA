@@ -16,7 +16,7 @@ from __future__ import division
 import numpy as np
 import pandas as pd
 import itertools
-from collections import defaultdict
+from collections import defaultdict, Counter
 from cana.canalization import boolean_canalization as BCanalization
 import warnings
 from cana.utils import *
@@ -28,23 +28,29 @@ class BooleanNode(object):
 
 
 	"""
-	def __init__(self, name='x', k=1, inputs=['i_0'], state=False, outputs=[0,1], constant=False, verbose=False, *args, **kwargs):
-		self.name = name 				# the name of the node
-		self.k = k 						# k is the number of inputs
-		self.inputs = inputs 			# the name of the input variables
-		self.state = state 				# the initial state of the node
-		self.outputs = outputs 			# the list of transition outputs
-		self.verbose = verbose 			# verbose mode
+	#__slots__ ['id']
+
+	def __init__(self, id=0, name='x', k=1, inputs=[0], state=False, outputs=[0,1], constant=False, verbose=False, *args, **kwargs):
+		self._id = id
+		self.name = name
+		self.state = state
 
 		# Consistency
-		if (k != 0) and (k != int(np.log2(len(outputs)))):
-			raise ValueError('Number of k (inputs) do not match the number of output transitions')
+		if (k != 0):
+			if (2**len(inputs) != len(outputs)):
+				raise TypeError('Number of k={:,d} (inputs) do not match the number of output transitions 2**k={:,d}'.format( k , len(outputs) ))
+		
+		self._inputs = inputs
+		self._k = k
+		self._outputs = liststates_to_binstates(outputs)
 
 		# If all outputs are either positive or negative, this node can be treated as a constant.
 		if (len(set(outputs))==1) or (constant):
 			self.constant = True
 		else:
 			self.constant = False
+
+		self.verbose = verbose
 
 		# Canalization Variables
 		self._transition_density_tuple = None 	# A tuple of transition tables used in the first step of the QM algorithm.
@@ -54,33 +60,167 @@ class BooleanNode(object):
 		self._ts_coverage = None 				# The Coverage of inputs by Two Symbol schemata
 
 	def __str__(self):
-		if len(self.outputs) > 10 :
-			outputs = '[' + ','.join(map(str, self.outputs[:4])) + '...' + ','.join(map(str, self.outputs[-4:])) + ']'
+		if len(self._outputs) > 10 :
+			outputs = self._outputs[:4] + '...' + self._outputs[-4:]
 		else:
-			outputs = '[' + ','.join(map(str,self.outputs)) + ']'
-		inputs = '[' + ','.join(self.inputs) + ']'
-		return "<BNode(name='%s', k=%s, inputs=%s, state=%d, outputs='%s' constant=%s)>" % (self.name, self.k, inputs, self.state, outputs, self.constant)
+			outputs = self._outputs
+		inputs = '[' + ','.join(map(str, self._inputs)) + ']'
+		return "<BNode({}, name='{}', k={}, inputs={}, state={}, outputs='{}' constant={})>".format(self.id, self.name, self.k, inputs, self.state, outputs, self.constant)
 
-	@classmethod
-	def from_output_list(self, outputs=list(), *args, **kwargs):
-		"""Instanciate a Boolean Node from a output transition list.
+	#
+	# Get/Set Methods
+	#
+	@property
+	def id(self):
+		"""Returns the id of the node."""
+		return self._id
+	
+	@property
+	def name(self):
+		"""Return the name of the node.
+
+		Returns:
+			name (string) : the name."""
+		return self._name
+
+	@name.setter
+	def name(self, name):
+		"""Set a new node name.
 
 		Args:
-			outputs (list) : The transition outputs of the node.
-		Returns:
-			(BooleanNode) : the instanciated object.
-		Example:
-			>>> BooleanNode.from_output_list(outputs=[0,0,0,1], name="AND")
+			name (string) : new name.
 		"""
-		name = kwargs.pop('name') if 'name' in kwargs else 'x'
-		k = int(np.log2(len(outputs)))
-		inputs = kwargs.pop('inputs') if 'inputs' in kwargs else ['i%d' % (x+1) for x in range(k)]
-		state = kwargs.pop('state') if 'state' in kwargs else False
+		if not isinstance(name, (str,unicode)):
+			raise TypeError("Network name must be string or unicode.")
+		self._name = name
 
-		return BooleanNode(name=name, k=k, inputs=inputs, state=state, outputs=outputs, *args, **kwargs)
+	@property
+	def state(self):
+		"""Return the node state.
+
+		Returns:
+			(int) : node state
+		"""
+		return self._state
+
+	@state.setter
+	def state(self, s):
+		"""Set the node on a new state.
+
+		Args:
+			(int) : new state
+		"""
+		if s not in ['0','1']:
+			s = variable_to_string(s)
+		self._state = s
+
+	def flip_state(self):
+		"""Flips the current state of the node."""
+		self.state = '1' if self.state == '0' else '0'
+
+	@property
+	def k(self):
+		"""Return the k number of node inputs. Read-only after instantiation.
+
+		Returns:
+			k (int) : Number of k inputs."""
+		return self._k
+
+	@property
+	def inputs(self):
+		"""Return the inputs of the node. Read-only after instantiation.
+
+		Returns:
+			inputs (list) : Each item corresponds to the id of the node in the network.
+		
+		"""
+		return self._inputs
+	
+	@property
+	def outputs(self):
+		"""Return the list of transition outputs. Read-only after instantiation.
+
+		Returns:
+			outputs (list) : The output transition list.
+		"""
+		return self._outputs
+
+	@property
+	def constant(self):
+		"""Determines if node is considered a constant variable.
+
+		Returns:
+			constant int) : The constant property value.
+		"""
+		return self._constant
+	
+	@constant.setter
+	def constant(self, c):
+		"""Sets node to a constant Boolean value.
+
+		Args:
+			(int) : The Boolean value of the constant property.
+		"""
+		if (not isinstance(c, int)):
+			raise TypeError("You must use a Boolean values to set the constant property.")
+		self._constant = bool(int(c))
+
+	def is_constant(self):
+		"""True if node is constant"""
+		return True if self.constant else False
+
+	def has_inputs(self):
+		"""True if node has inputs"""
+		return True if len(self.inputs) else False
+
+	def step(self, input):
+		""" new step()"""
+		if self.constant or len(input)==0:
+			return self.state
+		else:
+			numstate = strstates_to_numstate( input )
+			self.state = self.outputs[numstate]
+		return self
+
+	@property
+	def bias(self):
+		r"""The node bias. The sum of the boolean output transitions divided by the number of entries (:math:`2^k`) in the LUT.
+
+		.. math::
+
+			bias(x) = \frac{ \sum_{f_{\alpha}\in F} s_{\alpha} }{ |F| }
+
+		Returns:
+			(float)
+
+		See Also:
+			:func:`~cana.boolean_network.network_bias`
+		"""
+		return Counter(self.outputs)['1'] / 2**self.k
+
+	def number_of_states(self):
+		"""Returns the number of possible states of the node
+
+		Returns:
+			number_of_states (int) : The number of states.
+		"""
+		return 2**self.k
+
+	def iter_states(self, numeric=True):
+		"""Iterator for the possible 2**k states. In number or string format.
+
+		Returns:
+			state (int) : The state iterator.
+			numeric (bool) : Use numeric format
+
+		See also:
+			`iter_strstates`
+		"""
+		for state in np.arange(2**self.k):
+			yield state if numeric else numstate_to_strstates(state, width=self.k)
 
 	def input_redundancy(self, mode='node', bound='upper', norm=True):
-		r""" The Input Redundancy :math:`k_{r}` is the mean number of unnecessary inputs (or ``#``) in the Prime Implicants Look Up Table (LUT).
+		r"""The Input Redundancy :math:`k_{r}` is the mean number of unnecessary inputs (or ``#``) in the Prime Implicants Look Up Table (LUT).
 		Since there may be more than one redescription schema for each input entry, the input redundancy is bounded by an upper and lower limit.
 		It can also be computed per input :math:`r_i`.
 
@@ -339,7 +479,7 @@ class BooleanNode(object):
 			k = self.k
 		for statenum, output in zip( range(k**2), self.outputs):
 			# Binary State, Transition
-			d.append( (statenum_to_binstate(statenum, base=self.k), output) )
+			d.append( (statenum_to_binstates(statenum, base=self.k), output) )
 		df = pd.DataFrame(d, columns=['In:','Out:'])
 		return df
 
@@ -435,39 +575,24 @@ class BooleanNode(object):
 			AttributeError('The format type could not be found. Try "pandas" "latex".')
 
 
-	def step(self, input):
-		""" Returns the output of the node based on a specific input
-		Args:
-			input (list) : an input to the node.
-
-		Returns:
-			output (bool) : the output value.
-		"""
-		if self.constant:
-			return self.outputs[0]
-		else:
-			if isinstance(input, str):
-				input = ''.join(input)
-				if len(input) != self.k:
-					raise ValueError('Input length do not match number of k inputs')
-				output_idx = binstate_to_statenum(input)
-
-			elif isinstance(input, int):
-				output_idx = input
-				if input >= 2**self.k:
-					raise ValueError('Input statenum is too large for k inputs')
-
-			return self.outputs[output_idx]
-
-
 	def activities(self):
-		"""
+		"""Returns the per input 
 		Ghanbarnejad & Klemm (2012) EPL, 99
 
 		ToDo: there is likely a more efficent way to do this because we are double counting perturbations
 		"""
-		return [2**(-self.k) * np.abs([self.step(statenum) - self.step(flip_binstate_bit(statenum_to_binstate(statenum, base=self.k), inode))
-			for statenum in range(2**self.k)]).sum() for inode in range(self.k)]
+		#
+		return [ 2**(-self.k) * sum( [1 if self.step(strstates).state != self.step(flip_bit_in_strstates(strstates, idx=i)).state else 0 for strstates in self.iter_states(numeric=False)]) for i in range(self.k) ]
+
+		activities = {i for i in range(self.k)}
+		for numstate in self.iter_states():
+			strstates = numstate_to_strstates(numstate)
+			for i in range(self.k):
+				normal    = self.step(strstates).state
+				perturbed = self.step(flip_bit_in_strstates(strstates, idx=i)).state
+				if normal != perturbed:
+					activities[i] += 1
+		return 2**(-self.k) * activities.sum()
 
 
 	def canalizing_map(self, output=None):
@@ -640,21 +765,6 @@ class BooleanNode(object):
 			raise Exception('Canalization variable name not found. %s' % kwargs)
 		return True
 
-	def bias(self):
-		r""" The node bias. The sum of the boolean output transitions divided by the number of entries (:math:`2^k`) in the LUT.
-
-		.. math::
-
-			bias(x) = \frac{ \sum_{f_{\alpha}\in F} s_{\alpha} }{ |F| }
-
-		Returns:
-			(float)
-
-		See Also:
-			:func:`~boolnets.boolean_network.network_bias`
-		"""
-		return sum(self.outputs) / 2**self.k
-
 	def c_sensitivity(self, c, mode="default", max_k=0):
 		""" Node c-sensitivity.
 		c-sensitivity is defined as: the mean probability that changing exactly
@@ -699,7 +809,6 @@ class BooleanNode(object):
 						mut_config = origin_config[:]
 						for i_mut in mut:
 							mut_config[i_mut] = flip_bit(mut_config[i_mut])
-						if self.step(''.join(origin_config)) != self.step(
-								''.join(mut_config)):
+						if self.step(''.join(origin_config)) != self.step(''.join(mut_config)):
 							S_c_f += ncr(max_k - self.k, c - ic)
 			return S_c_f / float(ncr(max_k, c)) / float(2 ** self.k)

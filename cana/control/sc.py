@@ -14,8 +14,8 @@ import networkx as nx
 import itertools
 import copy
 
-def sc(directed_graph, keep_self_loops=True):
-	"""The Structural Contolability driver sets.
+def structural_controlability(directed_graph, keep_self_loops=True):
+	"""The Structural Controlability driver sets.
 
 	Parameters:
 		directed_graph (networkx.DiGraph) : The directed graph capturing the network structure.

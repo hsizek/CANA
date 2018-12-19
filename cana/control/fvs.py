@@ -19,6 +19,36 @@ import numpy as np
 import itertools
 import copy
 
+
+#
+# Feedback Vertex Set (FVS)
+#
+def feedback_vertex_set(self, graph, method='grasp', max_iter=1, max_search=11, keep_self_loops=True, *args, **kwargs):
+	"""The minimum set of necessary driver nodes to control the network based on Feedback Vertex Set (FVS) theory.
+
+	Args:
+		graph (networkx.DiGraph) : A Structural graph to perform computation.
+		method (string) : FVS method. ``bruteforce`` or ``grasp`` (default).
+		max_iter (int) : The maximum number of iterations used by the grasp method.
+		max_search (int) : The maximum number of searched used by the bruteforce method.
+		keep_self_loops (bool) : Keep or remove self loop in the graph to be searched.
+
+	Returns:
+		(list) : A list-of-lists with FVS solution nodes.
+
+	Note:
+		When computing FVS on the structural graph, you might want to use ``remove_constants=True``
+		to make sure the resulting set is minimal – since constants are not controlabled by definition.
+		Also, when computing on the effective graph, you can define the desired ``threshold`` level.
+	"""
+	if method == 'grasp':
+		fvssets = fvs.fvs_grasp(graph, max_iter=max_iter, keep_self_loops=keep_self_loops)
+	elif method == 'bruteforce':
+		fvssets = fvs.fvs_bruteforce(graph, max_search=max_search, keep_self_loops=keep_self_loops)
+	else:
+		raise AttributeError("The FVS method '%s' does not exist. Try 'grasp' or 'bruteforce'." % method)
+
+	return fvssets #[ [self.nodes[i].name for i in fvsset] for fvsset in fvssets]
 #
 # GRASP method
 #

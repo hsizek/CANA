@@ -1,10 +1,11 @@
 import networkx as nx
 import numpy as np
+np.set_printoptions(threshold=np.inf)
 from itertools import product
-import copy
 import math
 import random
-import operator as op
+import operator
+from functools import reduce
 
 def recursive_map(f,d):
 	"""Normal python map, but recursive
@@ -15,14 +16,14 @@ def recursive_map(f,d):
 	"""
 	return [ not hasattr(x, "__iter__") and f(x) or recursive_map(f, x) for x in d ]
 
-def binstate_to_statenum(binstate):
-	"""Converts from binary state to state number.
+def strstates_to_numstate(strstates):
+	"""Converts from binary state (string) to state number (int).
 
 	Args:
-		binstate (string) : The binary state.
+		strstates (string) : A string of binary states.
 
 	Returns:
-		int : The state number.
+		numstate (int) : The state number.
 
 	Example:
 
@@ -35,40 +36,78 @@ def binstate_to_statenum(binstate):
 	See also:
 		:attr:`statenum_to_binstate`, :attr:`statenum_to_density`
 	"""
-	return int(binstate, 2)
+	return int(strstates, 2)
 
-def statenum_to_binstate(statenum, base):
-	"""Converts an interger into the binary string.
+def numstate_to_strstates(numstate, width=2):
+	"""Converts from state number (int) to a binary state (string).
 
 	Args:
-		statenum (int) : The state number.
-		base (int) : The binary base
+		numstate (int) : The state number.
+		width (int) : The length of the returned string if num is positive.
 
 	Returns:
-		string : The binary state.
+		strstates (string) : A string of binary states.
 
 	Example:
 
 		.. code-block:: python
 
-			0 -> '00' (base 2)
-			1 -> '01' (base 2)
-			2 -> '10' (base 2)
+			0 -> '00' (width 2)
+			1 -> '01' (width 2)
+			2 -> '10' (width 2)
 			...
-			0 -> '000' (base 3)
-			1 -> '001' (base 3)
-			2 -> '010' (base 3)
+			0 -> '000' (width 3)
+			1 -> '001' (width 3)
+			2 -> '010' (width 3)
 
 	See also:
-		:attr:`binstate_to_statenum`, :attr:`binstate_to_density`
+		:attr:`binstate_to_numstate`, :attr:`binstate_to_density`
 	"""
-	# binary representation
-	bstate = bin(statenum)[2::]
-	# 0 padding
-	bstate = "".join(['0' for n in range(base - len(bstate))]) + bstate
-	### Consider, and test, changing this function to just
-	# bstate = bin(statenum)[2:].zfill(base)
-	return bstate
+	return np.binary_repr(numstate, width=width)
+
+def liststates_to_binstates(liststates):
+	"""Converts from state (list) to a binary state (string).
+
+	Args:
+		liststates (list) : A list of states.
+
+	Returns:
+		strstates (string) : A string of binary states.
+
+	Example:
+
+		.. code-block:: python
+
+			[0,0] -> '00'
+			[0,1] -> '01'
+			[1,0] -> '10'
+			[1,1] -> '11'
+	"""
+	return "".join(map(str,liststates))
+
+def variable_to_string(var):
+	"""Converts any variable type to a boolean string
+
+	Args:
+		var (any) : A variable
+	Returns:
+		(string) : A boolean-like string
+	"""
+	return str(int(bool(var)))
+
+def graph_reachability(G):
+	"""Computes Graph Reachability for all nodes in a graph.
+	Used to compute the (Controlled) State Transition Graph Reachability (STG-R).
+
+	Returs:
+		graph_reachability (numpy.array) : The graph reachability array.
+	"""
+	size = G.number_of_nodes()
+	greach = np.zeros(shape=(size), dtype='uint32')
+	for i in G.nodes():
+		dfs_reachable = set( nx.dfs_preorder_nodes(G, i) )
+		greach[i] = len(dfs_reachable) - 1
+	return greach
 
 def binstate_pinned_to_binstate(binstate, pinned_binstate, pinned_var):
 	"""Combines two binstates based on the locations of pinned variables.
@@ -97,7 +136,22 @@ def binstate_pinned_to_binstate(binstate, pinned_binstate, pinned_var):
 			ireg += 1
 	return ''.join(new_binstate)
 
-def statenum_to_output_list(statenum, base):
+def basin_entropy(self, number_of_nodes, STG, base=2):
+	"""
+	Args:
+		number_of_nodes (int) : The number of nodes in the Boolean Network.
+		STG (networkx.DiGraph) : The State-Transition-Graph of the Boolean Network.
+	
+	Returns:
+		entropy (float) : The entropy
+
+	TODO:
+		Function description.
+	"""
+	prob_vec = np.array([len(wcc) for wcc in nx.weakly_connected_components(STG)]) / 2.0**number_of_nodes
+	return entropy(prob_vec, base=base)
+
+#def statenum_to_output_list(statenum, base):
 	"""Converts an interger into a list of 0 and 1, thus can feed to BooleanNode.from_output_list()
 
 	Args:
@@ -110,43 +164,49 @@ def statenum_to_output_list(statenum, base):
 	See also:
 	    :attr:'statenum_to_binstate'
 	"""
-	return [int(i) for i in statenum_to_binstate(statenum, base)]
+	#return [int(i) for i in statenum_to_binstate(statenum, base)]
 
 def flip_bit(bit):
 	"""Flips the binary value of a state.
 
 	Args:
-		bit (string/int/bool): The current bit position
+		bit (string): The current bit position
 
 	Returns:
-		same as input: The flipped bit
-	"""
-	if isinstance(bit, str):
-		return '0' if (bit=='1') else '1'
-	elif isinstance(bit, int) or isintance(bit, bool):
-		return 0 if (bit == 1) else 1
-	else:
-		raise TypeError("'bit' type format must be either 'string', 'int' or 'boolean'")
+		bit: The flipped bit
 
-def flip_binstate_bit(binstate, idx):
+	Example:
+		
+		.. code-block:: python
+
+			'0' -> '1'
+	"""
+	if not isinstance(bit, str):
+		raise TypeError("Input '{}' type ({}) format must be either 'string'".format(bit,type(bit)))
+	return '0' if (bit=='1') else '1'
+
+def flip_bit_in_strstates(strstates, idx):
 	"""Flips the binary value of a bit in a binary state.
 
 	Args:
-		binstate (string) : The binary state.
+		strstates (string) : A string of binary states.
 		idx (int) : The index of the bit to flip.
 
 	Returns:
 		(string) : New binary state.
+	
+	Example:
+		
+		.. code-block:: python
 
+			flip_bit_in_strstates('000',1) -> '010'
 	"""
-	if idx > len(binstate):
-		raise TypeError('Binary state (%s) length and index position (%d) mismatch for.' % (binstate, idx))
+	if idx+1 > len(strstates):
+		raise TypeError("Binary state '{}' length and index position '{}' mismatch.".format(strstates, idx))
+	return strstates[:idx] + flip_bit(strstates[idx]) + strstates[idx+1:]
 
-	_binstate = list(binstate)
-	_binstate[idx] = flip_bit(_binstate[idx])
-	return ''.join(_binstate)
 
-def flip_binstate_bit_set(binstate, idxs):
+def flip_bitset_in_strstates(strstates, idxs):
 	"""Flips the binary value for a set of bits in a binary state.
 
 	Args:
@@ -155,15 +215,14 @@ def flip_binstate_bit_set(binstate, idxs):
 
 	Returns:
 		(list) : The flipped states
+
+	Example:
+		
+		.. code-block:: python
+
+			flip_bit_in_strstates('000',[0,2]) -> ['100','001']
 	"""
-	flipset = []
-	if (len(idxs) != 0):
-		fb = idxs.pop()
-		flipset.extend(flip_binstate_bit_set(binstate, copy.copy(idxs) ) )
-		flipset.extend(flip_binstate_bit_set(flip_binstate_bit(binstate, fb), copy.copy(idxs) ) )
-	else:
-		flipset.append(binstate)
-	return flipset
+	return [flip_bit_in_strstates(strstates,idx) for idx in idxs]
 
 def statenum_to_density(statenum):
 	"""Converts from state number to density
@@ -290,16 +349,6 @@ def print_logic_table(outputs):
 	for statenum in range(2**k):
 		print(statenum_to_binstate(statenum, base=k) + " : " + str(outputs[statenum]))
 
-def entropy(prob_vector, logbase = 2.):
-	"""Calculates the entropy given a probability vector
-
-	Todo:
-		This should be calculated using ``scipy.entropy``
-	"""
-	prob_vector = np.array(prob_vector)
-	pos_prob_vector = prob_vector[prob_vector > 0]
-	return - np.sum(pos_prob_vector * np.log(pos_prob_vector)/np.log(logbase))
-
 def hamming_distance(s1, s2):
 	"""Calculates the hamming distance between two configurations strings.
 
@@ -331,8 +380,9 @@ def ncr(n, r):
 	"""
 	r = min(r, n - r)
 	if r == 0: return 1
-	numer = reduce(op.mul, range(n, n - r, -1))
-	denom = reduce(op.mul, range(1, r + 1))
+	# reduce not present in Python3, using functools.reduce
+	numer = reduce(operator.mul, range(n, n - r, -1))
+	denom = reduce(operator.mul, range(1, r + 1))
 	return numer // denom
 
 
@@ -387,11 +437,10 @@ def output_transitions(eval_line, input_list):
 	total = 2**len(input_list) # Total combinations to try
 	output_list = []
 	for i in range(total):
-		trial_string = statenum_to_binstate(i, len(input_list) )
+		trial_string = numstate_to_strstates(i, len(input_list) )
 		# Evaluate trial_string by assigning value to each input variable
 		for j,input in enumerate(input_list):
 			exec(input + '=' + trial_string[j])
 		output_list.append(int(eval(eval_line)))
 
 	return output_list
-

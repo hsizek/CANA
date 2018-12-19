@@ -17,7 +17,7 @@ import copy
 #
 # Minimum Dominating Set
 #
-def mds(directed_graph, max_search=5, keep_self_loops=True):
+def minimum_dominating_set(directed_graph, max_search=5, keep_self_loops=True):
 	"""The minimum dominating set method.
 
 	Args:
@@ -55,6 +55,7 @@ def _get_dominated_set(directed_graph, dominatingset):
 
 def _root_variables(directed_graph, keep_self_loops=True):
 	"""
+	TODO
 	"""
 	return set([n for n in directed_graph.nodes() if (directed_graph.in_degree(n) == 0) 
 			or ( (not keep_self_loops) and (directed_graph.neighbors(n) == [n]))])
