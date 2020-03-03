@@ -97,11 +97,16 @@ class BooleanNetwork:
 		See also:
 			:func:`from_string` :func:`from_dict`
 		"""
-		with open(file, 'r') as infile:
-			if type=='cnet':
-				return self.from_string_cnet(infile.read(), keep_constants=keep_constants, **kwargs)
-			elif type=='logical':
-				return self.from_string_boolean(infile.read(), keep_constants=keep_constants, **kwargs)
+		try:
+			with open(file, 'r') as infile:
+				file_str = infile.read()
+		except UnicodeDecodeError:
+			with open(file, 'r', encoding = "ISO-8859-1") as infile:
+				file_str = infile.read()
+		if type=='cnet':
+			return self.from_string_cnet(file_str, keep_constants=keep_constants, **kwargs)
+		elif type=='logical':
+			return self.from_string_boolean(file_str, keep_constants=keep_constants, **kwargs)
 
 	@classmethod
 	def from_string_cnet(self, string, keep_constants=True, **kwargs):
@@ -1141,7 +1146,8 @@ class BooleanNetwork:
 
 
 	def approx_dynamic_impact(self, node, n_steps=1, mode='effective',
-		bound='mean', threshold=0.0,
+		bound='mean', threshold=0.0, threshold_type = 'value',
+
 		bias=0.5, min_log_prob=np.log(10**(-5))):
 		"""
 		Use the network structure to approximate the dynamical impact of a perturbation to node for each of n_steps
@@ -1162,6 +1168,10 @@ class BooleanNetwork:
 			bound (str) : the bound for the effective graph
 				'mean'
 
+			threshold (float) : a value to threshold the effective graph
+
+			threshold_type (str) : 'value' takes the explicit threshold value, 'percent' treats threshold as a percentage
+
 			bias (float) : the average bias for the bias approximation
 
 			min_log_prob (float) : the default minimum probability
@@ -1174,7 +1184,14 @@ class BooleanNetwork:
 
 		# choose the underlying graph and get the log edge weight
 		if mode == 'effective':
-			G = self.effective_graph(bound=bound, threshold=threshold)
+			if threshold_type == 'percent':
+				G = self.effective_graph(bound=bound)
+				effectiveness = [attr['weight'] for source, target, attr in G.edges(data=True) if attr['weight'] > 0]
+				threshold = np.percentile(effectiveness, threshold)
+				G = nx.DiGraph(((source, target, attr) for source, target, attr in G.edges(data=True) if attr['weight'] > threshold))
+			else:
+				G = self.effective_graph(bound=bound, threshold = threshold)
+
 			log_weights = {e:np.log(w) for e,w in nx.get_edge_attributes(G, 'weight').items()}
 			inv_weight_func = lambda x: np.exp(x)
 
@@ -1202,6 +1219,7 @@ class BooleanNetwork:
 
 			dist = probability_dijkstra_multisource(G.subgraph(light_cone), sources=paths[node], weight=weight_func,
 											   pred=None, paths=paths, target=None)
+
 			impact_matrix[n_step] = [inv_weight_func(dist[jnode])
 			if ( (jnode != node) and jnode in dist.keys() and len(paths[jnode]) <= (n_step+2)) else 0
 			for jnode in range(self.Nnodes)]
