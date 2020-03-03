@@ -368,15 +368,13 @@ class BooleanNetwork:
 		self._check_compute_variables(sg=True)
 		return sorted(self._sg.out_degree().values(), reverse=True)
 
-	def effective_graph(self, mode='input', bound='mean', threshold=None):
+	def effective_graph(self, bound='mean', threshold=None):
 		"""Computes and returns the effective graph of the network.
 		In practive it asks each :class:`~boolnets.boolean_node.BooleanNode` for their :func:`~boolnets.boolean_node.BooleanNode.effective_connectivity`.
 
 		Args:
-			mode (string) : Per "input" or per "node". Defaults to "node".
 			bound (string) : The bound to which compute input redundancy.
-				Mode "node" accepts: ["lower", "upper"].
-				Mode "input" accepts: ["lower", "mean", "upper", "tuple"].
+				["lower", "mean", "upper", "tuple"].
 				Defaults to "mean".
 			threshold (float) : Only return edges above a certain effective connectivity threshold.
 				This is usefull when computing graph measures at diffent levels.
@@ -399,17 +397,11 @@ class BooleanNetwork:
 		# Add Edges
 		for i, node in enumerate(self.nodes, start=0):
 
-			if mode == 'node':
-				raise Exception('TODO')
-
-			elif mode == 'input':
-				e_is = node.effective_connectivity(mode=mode, bound=bound, norm=False)
-				for inputs,e_i in zip(self.logic[i]['in'], e_is):
-					# If there is a threshold, only return those number above the threshold. Else, return all edges.
-					if ((threshold is None) and (e_i > 0)) or ((threshold is not None) and (e_i > threshold)):
-						self._eg.add_edge(inputs, i, **{'weight':e_i})
-			else:
-				raise AttributeError('The mode you selected does not exist. Try "node" or "input".')
+			e_is = node.input_effectiveness(bound=bound)
+			for inputs,e_i in zip(self.logic[i]['in'], e_is):
+				# If there is a threshold, only return those number above the threshold. Else, return all edges.
+				if ((threshold is None) and (e_i > 0)) or ((threshold is not None) and (e_i > threshold)):
+					self._eg.add_edge(inputs, i, **{'weight':e_i})
 
 		return self._eg
 
@@ -1046,7 +1038,7 @@ class BooleanNetwork:
 		if graph == 'structural':
 			dg = self.structural_graph(*args, **kwargs)
 		elif graph == 'effective':
-			dg = self.effective_graph(mode='input', bound='mean', threshold=None, *args, **kwargs)
+			dg = self.effective_graph(bound='mean', threshold=None, *args, **kwargs)
 		else:
 			raise AttributeError("The graph type '%s' is not accepted. Try 'structural' or 'effective'." % graph)
 		#
@@ -1079,7 +1071,7 @@ class BooleanNetwork:
 		if graph == 'structural':
 			dg = self.structural_graph(*args, **kwargs)
 		elif graph == 'effective':
-			dg = self.effective_graph(mode='input', bound='mean', threshold=None, *args, **kwargs)
+			dg = self.effective_graph(bound='mean', threshold=None, *args, **kwargs)
 		else:
 			raise AttributeError("The graph type '%s' is not accepted. Try 'structural' or 'effective'." % graph)
 		#
@@ -1104,7 +1096,7 @@ class BooleanNetwork:
 		if graph == 'structural':
 			dg = self.structural_graph(*args, **kwargs)
 		elif graph == 'effective':
-			dg = self.effective_graph(mode='input', bound='mean', threshold=None, *args, **kwargs)
+			dg = self.effective_graph(bound='mean', threshold=None, *args, **kwargs)
 		else:
 			raise AttributeError("The graph type '%s' is not accepted. Try 'structural' or 'effective'." % graph)
 		#
@@ -1148,7 +1140,7 @@ class BooleanNetwork:
 		return partial
 
 
-	def approx_dynamic_impact(self, node, n_steps=1, mode='effective', 
+	def approx_dynamic_impact(self, node, n_steps=1, mode='effective',
 		bound='mean', threshold=0.0,
 		bias=0.5, min_log_prob=np.log(10**(-5))):
 		"""

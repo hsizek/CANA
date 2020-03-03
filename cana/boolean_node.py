@@ -87,8 +87,8 @@ class BooleanNode(object):
 
 		return BooleanNode(name=name, k=k, inputs=inputs, state=state, outputs=outputs, *args, **kwargs)
 
-	def input_redundancy(self, mode='node', bound='upper', norm=True):
-		r""" The Input Redundancy :math:`k_{r}` is the mean number of unnecessary inputs (or ``#``) in the Prime Implicants Look Up Table (LUT).
+	def node_redundancy(self, bound='upper', norm=False):
+		r""" The Node Redundancy :math:`k_{r}` is the mean number of unnecessary inputs (or ``#``) in the Prime Implicants Look Up Table (LUT).
 		Since there may be more than one redescription schema for each input entry, the input redundancy is bounded by an upper and lower limit.
 		It can also be computed per input :math:`r_i`.
 
@@ -104,19 +104,17 @@ class BooleanNode(object):
 		where :math:`\Phi` is a function (:math:`min` or :math:`max`) and :math:`F` is the node LUT.
 
 		Args:
-			mode (string) : Per "input" or per "node". Defaults to "node".
 			bound (string) : The bound to which compute input redundancy.
-				Mode "node" accepts: ["lower", "upper"].
-				Mode "input" accepts: ["lower", "mean", "upper", "tuple"].
+				["lower", "upper"].
 				Defaults to "upper".
 			norm (bool) : Normalized between [0,1].
-				Use this value when comparing nodes with different input sizes. (Defaults to "True".)
+				Use this value when comparing nodes with different input sizes. (Defaults to "False".)
 
 				:math:`k^{*}_r(x) = \frac{ k_r(x) }{ k(x) }`.
 
 
 		Returns:
-			(float / list) : The :math:`k_r` value or a list of :math:`r_i`.
+			(float) : The :math:`k_r` value
 
 		Note:
 			The complete mathematical description can be found in :cite:`Marques-Pita:2013`.
@@ -126,67 +124,124 @@ class BooleanNode(object):
 		"""
 		# Canalization can only occur when k>= 2
 		if self.k < 2:
-			if mode == 'node':
-				return 0.0
-			elif mode == 'input':
-				return [0.0]
-			else:
-				raise AttributeError('The mode you selected does not exist. Try "node" or "input".')
+			return 0.0
 
 		self._check_compute_canalization_variables(pi_coverage=True)
 
-		# Per Node
-		if mode == 'node':
-
-			if bound == 'upper':
-				minmax = max
-			elif bound == 'lower':
-				minmax = min
-			else:
-				raise AttributeError('The bound you selected does not exist. Try "upper", or "lower"')
-
-			redundancy = [minmax([pi.count('2') for pi in self._pi_coverage[binstate]]) for binstate in self._pi_coverage]
-
-			k_r = sum(redundancy) / 2**self.k
-
-			if (norm):
-				# Normalizes
-				k_r = k_r / self.k
-
-			return k_r
-
-		# Per Input
-		elif mode == 'input':
-
-			redundancies = []
-			# Generate a per input coverage
-			# ex: {0: {'11': [], '10': [], '00': [], '01': []}, 1: {'11': [], '10': [], '00': [], '01': []}}
-			pi_input_coverage = { input : { binstate: [ pi[input] for pi in pis ] for binstate,pis in self._pi_coverage.items() } for input in range(self.k) }
-
-			# Loop ever input node
-			for input,binstates in pi_input_coverage.items():
-				# {'numstate': [matches], '10': [True,False,True,...] ...}
-				countslenghts = {binstate_to_statenum(binstate): ([pi=='2' for pi in pis]) for binstate,pis in binstates.items() }
-				# A triplet of (min, mean, max) values
-				if bound == 'lower':
-					redundancy = sum( [all(pi) for pi in countslenghts.values()] ) / 2**self.k  # min(r_i)
-				elif bound == 'mean':
-					redundancy = sum( [sum(pi)/len(pi) for pi in countslenghts.values()] ) / 2**self.k  # <r_i>
-				elif bound == 'upper':
-					redundancy = sum( [any(pi) for pi in countslenghts.values()] ) / 2**self.k # max(r_i)
-				elif bound == 'tuple':
-					redundancy = ( sum([all(pi) for pi in countslenghts.values()]) / 2**self.k , sum([any(pi) for pi in countslenghts.values()]) / 2**self.k ) # (min,max)
-				else:
-					raise AttributeError('The bound you selected does not exist. Try "upper", "mean", "lower" or "tuple".')
-
-				redundancies.append(redundancy)
-
-			return redundancies # r_i
-
+		if bound == 'upper':
+			minmax = max
+		elif bound == 'lower':
+			minmax = min
 		else:
-			raise AttributeError('The mode you selected does not exist. Try "node" or "input".')
+			raise AttributeError('The bound you selected does not exist. Try "upper", or "lower"')
 
-	def effective_connectivity(self, mode='node', bound='upper', norm=True):
+		redundancy = [minmax([pi.count('2') for pi in self._pi_coverage[binstate]]) for binstate in self._pi_coverage]
+
+		k_r = sum(redundancy) / 2**self.k
+
+		if (norm):
+			# Normalizes
+			k_r = k_r / self.k
+
+		return k_r
+
+	def input_redundancy(self, bound='mean'):
+		r""" The Input Redundancy :math:`r_{ji}` is the number of times the input is not necessary to specify the automaton transition
+		 (or number of ``#`` in the Prime Implicants Look Up Table, LUT).
+
+		Since there may be more than one redescription schema for each input entry, the input redundancy is bounded by an upper and lower limit.
+
+		.. math::
+
+			r_i(x_i) = \frac{ \sum_{f_{\alpha} \in F} \Phi_{\theta:f_{\alpha} \in \Theta_{\theta}} (X^{\#}_{\theta_i} ) }{ |F| }
+
+		where :math:`\Phi` is a function (:math:`min` or :math:`max`) and :math:`F` is the node LUT.
+
+		Args:
+			bound (string) : The bound to which compute input redundancy.
+				["lower", "mean", "upper", "tuple"].
+				Defaults to "mean".
+
+
+		Returns:
+			(list) : The list of input redundancy for each input :math:`r_{ji}`.
+
+		Note:
+			The complete mathematical description can be found in :cite:`Gates:2019`.
+
+		See also:
+			:func:`node_redundancy`, :func:`effective_connectivity`, :func:`input_symmetry`.
+		"""
+		# Canalization can only occur when k>= 2
+		if self.k < 2:
+			return [0.0]
+
+		self._check_compute_canalization_variables(pi_coverage=True)
+
+		redundancies = []
+		# Generate a per input coverage
+		# ex: {0: {'11': [], '10': [], '00': [], '01': []}, 1: {'11': [], '10': [], '00': [], '01': []}}
+		pi_input_coverage = { input : { binstate: [ pi[input] for pi in pis ] for binstate,pis in self._pi_coverage.items() } for input in range(self.k) }
+
+		# Loop ever input node
+		for input,binstates in pi_input_coverage.items():
+			# {'numstate': [matches], '10': [True,False,True,...] ...}
+			countslenghts = {binstate_to_statenum(binstate): ([pi=='2' for pi in pis]) for binstate,pis in binstates.items() }
+			# A triplet of (min, mean, max) values
+			if bound == 'lower':
+				redundancy = sum( [all(pi) for pi in countslenghts.values()] ) / 2**self.k  # min(r_i)
+			elif bound == 'mean':
+				redundancy = sum( [sum(pi)/len(pi) for pi in countslenghts.values()] ) / 2**self.k  # <r_i>
+			elif bound == 'upper':
+				redundancy = sum( [any(pi) for pi in countslenghts.values()] ) / 2**self.k # max(r_i)
+			elif bound == 'tuple':
+				redundancy = ( sum([all(pi) for pi in countslenghts.values()]) / 2**self.k , sum([any(pi) for pi in countslenghts.values()]) / 2**self.k ) # (min,max)
+			else:
+				raise AttributeError('The bound you selected does not exist. Try "upper", "mean", "lower" or "tuple".')
+
+			redundancies.append(redundancy)
+
+		return redundancies # r_{ji}
+
+
+	def input_effectiveness(self, bound = 'mean'):
+		r"""The Input Effectiveness is the average number of input configurations in which the input has a
+		roll in determining the truth value of automaton.
+
+		See :cite:`Gates2019` for a detailed explaination of the measure.
+
+		.. math::
+
+			r_{ji} = \frac{ \sum\limits_{f_{\alpha} \in F_i} \; \underset{\upsilon:f_{\alpha} \in \Upsilon_{\upsilon}^i}{\textrm{avg}} \; \big( j \rightarrowtail \# \big)_{\upsilon} }{ |F_i| }
+
+		.. math::
+
+			e_{ji} = 1 - r_{ji}
+
+		Args:
+			bound (string) : The bound for the :math:`k_r` Input Redundancy.  one of: 'mean', 'upper', 'lower'
+
+
+		Returns:
+			(float/list) : The :math:`k_e` value or a list of :math:`e_r`.
+
+		Note:
+			The complete mathematical description can be found in :cite:`Gates:2019`.
+
+		See Also:
+			:func:`input_redundancy`, :func:`input_symmetry`, :func:`~boolnets.boolean_network.BooleanNetwork.effective_graph`.
+		"""
+		if self.k == 0:
+			return []
+		if self.k == 1:
+			return [1.0]
+		else:
+			e_i = [1.0 - x_i for x_i in self.input_redundancy(bound=bound)]
+			return e_i
+
+
+
+	def effective_connectivity(self, bound='mean', norm=False):
 		r"""The Effective Connectiviy is the mean number of input nodes needed to determine the transition of the node.
 
 		.. math::
@@ -198,7 +253,6 @@ class BooleanNode(object):
 			e_i(x_i) = k(x_i) - k_r(x_i)
 
 		Args:
-			mode (string) : Per "input" or per "node". Default is "node".
 			bound (string) : The bound for the :math:`k_r` Input Redundancy
 			norm (bool) : Normalized between [0,1].
 				Use this value when comparing nodes with different input sizes. (Defaults to "True".)
@@ -207,33 +261,67 @@ class BooleanNode(object):
 
 
 		Returns:
-			(float/list) : The :math:`k_e` value or a list of :math:`e_r`.
+			(float) : The :math:`k_e` value.
+
+		Note:
+			The complete mathematical description can be found in :cite:`Marques-Pita:2013`.
 
 		See Also:
 			:func:`input_redundancy`, :func:`input_symmetry`, :func:`~boolnets.boolean_network.BooleanNetwork.effective_graph`.
 		"""
 		# Canalization can only occur when k>= 2
-		if self.k < 2:
-			if mode == 'node':
-				return 1.0
-			elif mode == 'input':
-				return [1.0]
-			else:
-				raise AttributeError('The mode you selected does not exist. Try "node" or "input".')
+		if self.k == 1:
+			return 1.0
+		elif self.k == 0:
+			return 0
 
-		if mode == 'node':
 
-			k_r = self.input_redundancy(mode=mode, bound=bound, norm=False)
-			k_e = self.k - k_r
-			if (norm):
-				k_e = k_e / self.k
-			return k_e
+		k_r = self.node_redundancy(bound=bound, norm=False)
+		k_e = self.k - k_r
+		if (norm):
+			k_e = k_e / self.k
+		return k_e
 
-		elif mode == 'input':
-			e_i = [1 - x_i for x_i in self.input_redundancy(mode=mode, bound=bound, norm=False)]
-			return e_i
-		else:
-			raise AttributeError('The mode you selected does not exist. Try "node" or "input".')
+
+	def activities(self):
+		""" Returns the input activity (the probability of changing the output given a bitflip perturbation to each input).
+
+		Shmulevich and Kauffman (2004) PRL
+
+		The is more efficiently calculated using the effective connectivity with an upper bound.  see Gates et al. (2019)
+
+		Returns:
+			(list) : The list of acitivity values corresponding to the inputs
+		"""
+		return self.input_effectiveness(bound='upper')
+
+	def sensitivity(self):
+		""" Returns the sensitivity sum of acitivities
+
+		Shmulevich and Kauffman (2004) PRL
+
+		Returns:
+			(list) : The list of acitivity values corresponding to the inputs
+
+		See Also:
+			:func:`boolean_node.activities`
+			:func:`boolean_node.input_effectiveness`
+		"""
+		return sum(self.activities())
+
+	def collective_canalization(self):
+		""" Returns the collective canalization of the inputs (difference between the input effectiveness and activity)
+
+		The is more efficiently calculated using the effective connectivity with an upper bound.  see Gates et al. (2019)
+
+		Returns:
+			(list) : The list of acitivity values corresponding to the inputs
+
+		See Also:
+			:func:`boolean_node.input_effectiveness`
+		"""
+		return [e-a for e,a in zip(self.input_effectiveness(bound='mean'), self.activities())]
+
 
 	def input_symmetry(self, mode='node', bound='upper', norm=True):
 		r"""The Input Symmetry is a measure of permutation redundancy.
@@ -468,18 +556,6 @@ class BooleanNode(object):
 		"""
 		return self.outputs[binstate_to_statenum(input_state)]
 
-	def activities_old(self):
-		"""
-		Ghanbarnejad & Klemm (2012) EPL, 99
-
-		ToDo: there is likely a more efficent way to do this because we are double counting perturbations
-		"""
-		return [2**(-self.k) * np.abs([self.step(statenum_to_binstate(statenum, base=self.k)) - self.step(flip_binstate_bit(statenum_to_binstate(statenum, base=self.k), inode))
-			for statenum in range(2**self.k)]).sum() for inode in range(self.k)]
-
-	def activities(self):
-		return self.effective_connectivity(mode='input', bound='upper')
-
 	def canalizing_map(self, output=None):
 		""" Computes the node Canalizing Map (CM).
 
@@ -680,10 +756,10 @@ class BooleanNode(object):
 			max_k (int) : you must specify max_k when you set mode as 'forceK'
 
 		Returns:
-		    (float)
+			(float)
 
 		See Also:
-		    :func:`~boolnets.boolean_network.derrida_curve`
+			:func:`~boolnets.boolean_network.derrida_curve`
 		"""
 		S_c_f = 0
 		ic = min(c, self.k)
